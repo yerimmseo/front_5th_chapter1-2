@@ -6,7 +6,13 @@ const BASE_PATH =
 export const createRouter = (routes) => {
   const { subscribe, notify } = createObserver();
 
-  const getPath = () => window.location.pathname;
+  const getPath = () => {
+    const fullPath = window.location.pathname;
+
+    return BASE_PATH && fullPath.startsWith(BASE_PATH)
+      ? fullPath.slice(BASE_PATH.length)
+      : fullPath;
+  };
 
   const getTarget = () => routes[getPath()];
 

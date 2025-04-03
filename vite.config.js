@@ -1,5 +1,6 @@
 import { defineConfig as defineTestConfig, mergeConfig } from "vitest/config";
 import { defineConfig } from "vite";
+import path from "path";
 
 export default mergeConfig(
   defineConfig({
@@ -12,6 +13,14 @@ export default mergeConfig(
       esbuildOptions: {
         jsx: "transform",
         jsxFactory: "createVNode",
+      },
+    },
+    build: {
+      outDir: "dist",
+      rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, "index.html"),
+        },
       },
     },
   }),
