@@ -1,104 +1,154 @@
-// 전체 이벤트를 관리할 Map 생성
-/**
- * "click" => Map {
- *    button => [clickHandler1, clickHandler2],
- *    div => [divClickHandler1, divClickHandler2],
- * }
- */
-const eventHandlers = new Map();
+function createEventManager() {
+  const eventHandlers = new Map();
+  const setupEvents = new Set();
+  const observers = [];
+  const eventListeners = new Map();
+  let rootElement = null;
 
-// 이벤트 설정이 되었는지 확인
-// setupEvents = Set { "click", "input" }
-const setupEvents = new Set();
+  // 옵저버 등록
+  function addObserver(observer) {
+    observers.push(observer);
+  }
 
-export function setupEventListeners(root) {
-  // 이벤트들이 등록되어 있다는 가정하에
-  eventHandlers.forEach((elements, eventType) => {
-    if (setupEvents.has(eventType)) {
-      return;
-    }
+  // 이벤트 타입 추가 시 알람
+  function notifyEventTypeAdded(eventType) {
+    observers.forEach((observer) => {
+      observer.onEventTypeAdded(eventType);
+    });
+  }
 
-    root.addEventListener(
-      eventType,
-      (event) => {
-        let target = event.target;
+  // 특정 이벤트 타입에 대한 리스너 설정
+  function setupEventListener(eventType) {
+    if (!rootElement || setupEvents.has(eventType)) return;
 
-        while (target && target !== root) {
-          // button => Handlers가 있는지 확인해서 가져오기
-          if (elements.has(target)) {
-            const elementHandlers = [...elements.get(target)];
-            elementHandlers.forEach((handler) => {
-              handler(event);
-            });
-          }
+    // 실제 DOM 이벤트 핸들러 (이벤트 위임)
+    const eventListener = (event) => {
+      // 현재 시점의 이벤트 핸들러
+      const elements = eventHandlers.get(eventType);
+      if (!elements) return;
 
-          if (event.cancelBubble) {
-            break;
-          }
+      let target = event.target;
 
-          // 상위 요소로 이동
-          target = target.parentNode;
+      while (target && target !== rootElement) {
+        if (elements.has(target)) {
+          const handlers = [...elements.get(target)];
+          handlers.forEach((handler) => {
+            handler(event);
+          });
         }
-        // 이벤트 버블링
-      },
-      false,
-    );
+
+        if (event.cancelBubble) break;
+
+        // 상위 요소로 이동
+        target = target.parentNode;
+      }
+    };
+
+    // 이벤트 리스너 저장
+    eventListeners.set(eventType, eventListener);
+
+    rootElement.addEventListener(eventType, eventListener, false);
 
     setupEvents.add(eventType);
-  });
+  }
+
+  function resetEventListeners() {
+    if (!rootElement) return;
+
+    eventListeners.forEach((listener, type) => {
+      rootElement.removeEventListener(type, listener, false);
+    });
+
+    setupEvents.clear();
+    eventListeners.clear();
+  }
+
+  // 루트 요소 변경 시 이벤트 리스너 재설정
+  function setRootElement(element) {
+    if (rootElement === element) return;
+
+    // 이전 리스너 정리
+    resetEventListeners();
+    // 새 루트 요소 설정
+    rootElement = element;
+
+    eventHandlers.forEach((_, eventType) => {
+      setupEventListener(eventType);
+    });
+  }
+
+  function addEvent(element, eventType, handler) {
+    if (!eventHandlers.has(eventType)) {
+      eventHandlers.set(eventType, new Map());
+      notifyEventTypeAdded(eventType);
+    }
+
+    const elements = eventHandlers.get(eventType);
+
+    if (!elements.has(element)) {
+      elements.set(element, []);
+    }
+
+    // 중복 등록 방지
+    const handlers = elements.get(element);
+    if (handlers.indexOf(handler) === -1) {
+      handlers.push(handler);
+    }
+  }
+
+  function removeEvent(element, eventType, handler) {
+    if (!eventHandlers.has(eventType)) return;
+
+    const elements = eventHandlers.get(eventType);
+    if (!elements.has(element)) return;
+
+    const handlers = elements.get(element);
+    const index = handlers.indexOf(handler);
+
+    if (index > -1) {
+      handlers.splice(index, 1);
+
+      // 요소에 더이상 핸들러가 없으면 항목 제거
+      if (handlers.length === 0) {
+        elements.delete(element);
+      }
+    }
+  }
+
+  return {
+    addObserver,
+    notifyEventTypeAdded,
+    setupEventListener,
+    setRootElement,
+    addEvent,
+    removeEvent,
+  };
+}
+
+// 옵저버 생성 함수
+function createEventListenerObserver(eventManager) {
+  const observer = {
+    onEventTypeAdded(eventType) {
+      eventManager.setupEventListener(eventType);
+    },
+  };
+
+  eventManager.addObserver(observer);
+  return observer;
+}
+
+// 싱글톤 인스턴스 생성
+const eventManager = createEventManager();
+createEventListenerObserver(eventManager);
+
+export function setupEventListeners(root) {
+  eventManager.setRootElement(root);
 }
 
 export function addEvent(element, eventType, handler) {
-  // eventType이 등록이 안되어있으면
-  if (!eventHandlers.has(eventType)) {
-    eventHandlers.set(eventType, new Map());
-
-    // 새 이벤트 타입이면 리스너 설정이 필요할 수 있음
-    // 함수 단일 원칙 책임 원칙이 지켜지지 않는다..!
-    if (document.body) {
-      setupEventListeners(document.body);
-    }
-  }
-
-  const elements = eventHandlers.get(eventType);
-
-  // 저장된 요소가 없으면
-  if (!elements.has(element)) {
-    elements.set(element, []);
-  }
-
-  // 이벤트가 중복으로 등록될 수 있는 문제가 있음
-  // elements.get(element).push(handler);
-  const handlers = elements.get(element);
-  if (handlers.indexOf(handler) === -1) {
-    handlers.push(handler);
-  }
+  eventManager.addEvent(element, eventType, handler);
 }
 
 export function removeEvent(element, eventType, handler) {
-  // 저장된 이벤트 타입이 없으면 종료
-  if (!eventHandlers.has(eventType)) {
-    return;
-  }
-
-  const elements = eventHandlers.get(eventType);
-
-  // 저장된 요소가 없으면 종료
-  if (!elements.has(element)) {
-    return;
-  }
-
-  // 각 요소에 저장된 Handlers 가져오기
-  const handlers = elements.get(element);
-  // 두 함수가 같은 메모리 위치를 가르키기 때문에 같은 함수 인지 찾을 수 있음
-  const index = handlers.indexOf(handler);
-
-  // 일치하는게 있다면 제거
-  if (index > -1) {
-    handlers.splice(index, 1);
-    // 저장된 핸들러가 없으면 요소 항목 제거
-    if (handlers.length === 0) {
-      elements.delete(element);
-    }
-  }
+  eventManager.removeEvent(element, eventType, handler);
 }

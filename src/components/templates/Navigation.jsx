@@ -2,9 +2,7 @@
 import { createVNode } from "../../lib";
 import { router } from "../../router";
 import { globalStore } from "../../stores";
-
-const BASE_PATH =
-  process.env.NODE_ENV === "production" ? "/front_5th_chapter1-2" : "";
+import { BASE_PATH } from "../../constants";
 
 const getNavItemClass = (path) => {
   const fullPath = window.location.pathname;

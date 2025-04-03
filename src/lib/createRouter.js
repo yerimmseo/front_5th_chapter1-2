@@ -1,7 +1,5 @@
 import { createObserver } from "./createObserver";
-
-const BASE_PATH =
-  process.env.NODE_ENV === "production" ? "/front_5th_chapter1-2" : "";
+import { BASE_PATH } from "../constants";
 
 export const createRouter = (routes) => {
   const { subscribe, notify } = createObserver();
